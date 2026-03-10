@@ -1,0 +1,9 @@
+numpy
+pandas
+geopandas
+contextily
+matplotlib
+torch
+linearmodels
+scipy
+seaborn
