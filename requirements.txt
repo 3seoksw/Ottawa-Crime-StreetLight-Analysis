@@ -64,7 +64,6 @@ matplotlib==3.10.8
     # via
     #   -r requirements.in
     #   contextily
-    #   seaborn
 mercantile==1.2.1
     # via contextily
 mpmath==1.3.0
@@ -89,7 +88,6 @@ numpy==2.2.6
     #   pyogrio
     #   rasterio
     #   scipy
-    #   seaborn
     #   shapely
     #   statsmodels
 packaging==26.0
@@ -104,14 +102,19 @@ pandas==2.3.3
     #   formulaic
     #   geopandas
     #   linearmodels
-    #   seaborn
     #   statsmodels
+parquet==1.3.1
+    # via -r requirements.in
 patsy==1.0.2
     # via statsmodels
 pillow==12.1.1
     # via
     #   contextily
     #   matplotlib
+ply==3.11
+    # via thriftpy2
+pyarrow==23.0.1
+    # via -r requirements.in
 pyhdfe==0.2.0
     # via linearmodels
 pyogrio==0.12.1
@@ -139,16 +142,18 @@ scipy==1.15.3
     #   linearmodels
     #   pyhdfe
     #   statsmodels
-seaborn==0.13.2
-    # via -r requirements.in
 shapely==2.1.2
     # via geopandas
 six==1.17.0
-    # via python-dateutil
+    # via
+    #   python-dateutil
+    #   thriftpy2
 statsmodels==0.14.6
     # via linearmodels
 sympy==1.14.0
     # via torch
+thriftpy2==0.6.0
+    # via parquet
 torch==2.10.0
     # via -r requirements.in
 typing-extensions==4.15.0

@@ -6,4 +6,5 @@ matplotlib
 torch
 linearmodels
 scipy
-seaborn
+pyarrow
+parquet
