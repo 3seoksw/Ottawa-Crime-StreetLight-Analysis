@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
 
 
 class AggDataset(Dataset):
