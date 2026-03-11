@@ -78,8 +78,8 @@ def parse_crime_dates(gdf: gpd.GeoDataFrame):
 def add_crime_group(gdf: gpd.GeoDataFrame):
     gdf["crime_group"] = np.where(
         gdf["is_nighttime"] == 1,
-        "night",
-        "non_night",
+        1,  # "night",
+        0,  # "non_night",
     )
     return gdf
 
@@ -117,6 +117,8 @@ def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
         ["cell_id", "year_month", "crime_group"], observed=True
     ).size()
     aggregated = aggregated.to_frame("crime_count").reset_index()
+    aggregated["crime_group"] = aggregated["crime_group"].astype(int)
+    crime_groups = [0, 1]
 
     cells = grids["cell_id"].unique()
     months = pd.period_range(
@@ -124,7 +126,6 @@ def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
         crime_gdf["year_month"].max(),
         freq="M",
     )
-    crime_groups = ["night", "non_night"]
 
     full_index = pd.MultiIndex.from_product(
         [cells, months, crime_groups],
