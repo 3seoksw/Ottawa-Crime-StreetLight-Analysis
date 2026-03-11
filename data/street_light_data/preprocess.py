@@ -23,6 +23,20 @@ def load_street_light_data(filename: str = "data/street_light_data/Street_Lights
     df = pd.DataFrame(remove_outliers(df, "X"))
     df = pd.DataFrame(remove_outliers(df, "Y"))
 
+    # Install dates
+    df["INSTALL_LIGHT"] = pd.to_datetime(df["INSTALL_LIGHT"], errors="coerce")
+    invalid_date = (df["INSTALL_LIGHT"].dt.year < 1900) | (
+        df["INSTALL_LIGHT"].dt.year >= 2025
+    )
+    df.loc[invalid_date, "INSTALL_LIGHT"] = pd.NaT
+    df["install_year_month"] = df["INSTALL_LIGHT"].dt.to_period("M")
+
+    max_install = df["install_year_month"].max()
+    df["install_year_month"] = (max_install - df["install_year_month"]).apply(
+        lambda x: x.n if pd.notna(x) else -1
+    )
+
+    # Intensity Light information
     df["intensity"] = df["WATTAGE"] * df["LIGHTS_NUM"]
 
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.X, df.Y), crs="EPSG:3857")
@@ -51,6 +65,10 @@ def assign_street_lights_to_grid(gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame)
             total_wattage=("WATTAGE", "sum"),
             total_intensity=("intensity", "sum"),
             avg_wattage=("WATTAGE", "mean"),
+            avg_install_month=(
+                "install_year_month",
+                lambda s: s[s != -1].mean() if (s != -1).any() else -1,
+            ),
         )
         .reset_index()
     )

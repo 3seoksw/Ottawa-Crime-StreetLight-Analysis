@@ -121,8 +121,15 @@ def main():
     lights_cell = assign_street_lights_to_grid(light, grids)
 
     data_panel = panel.merge(lights_cell, on="cell_id", how="left")
-    light_feats = ["light_count", "total_wattage", "total_intensity", "avg_wattage"]
+
+    light_feats = [
+        "light_count",
+        "total_wattage",
+        "total_intensity",
+        "avg_wattage",
+    ]
     data_panel[light_feats] = data_panel[light_feats].fillna(0)
+    data_panel["avg_install_month"] = data_panel["avg_install_month"].fillna(-1)
 
     # Final Aggregation (coordinates included)
     grid_info = ["cell_id", "geometry", "centroid_x", "centroid_y"]
@@ -142,10 +149,6 @@ def main():
     print(f"Zero records: {len(data_panel[zero]):,}")
 
     validate_panel(data_panel)
-    summary = (
-        data_panel.groupby(["cell_id", "year_month"])["crime_count"].sum().reset_index()
-    )
-    print(summary[summary["crime_count"] > 0].head(20))
 
     # Save
     # print("Saving data_panel.parquet ...")
