@@ -82,6 +82,38 @@ def preprocess_street_light_data():
     return light_gdf
 
 
+def validate_panel(panel: pd.DataFrame):
+    assert panel[["cell_id", "year_month", "crime_group"]].isna().sum().sum() == 0
+    assert panel.duplicated(["cell_id", "year_month", "crime_group"]).sum() == 0
+    assert (panel["crime_count"] >= 0).all()
+    assert (panel["prev_crime_count"] >= 0).all()
+    assert (panel["avg_crime_count"] >= 0).all()
+    assert (panel["cumulative_crime_count"] >= 0).all()
+
+    assert set(panel["crime_group"].unique()) == {0, 1}
+    assert panel["crime_count"].dtype == int
+    assert (panel["cumulative_crime_count"] >= panel["prev_crime_count"]).all()
+    print("Validation passed")
+
+
+def encode_year_month(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    dt = df["year_month"].dt.to_timestamp()
+
+    df["year"] = dt.dt.year
+    df["month_num"] = dt.dt.month
+
+    df["month_sin"] = np.sin(2 * np.pi * dt.dt.month / 12)
+    df["month_cos"] = np.cos(2 * np.pi * dt.dt.month / 12)
+
+    min_period = df["year_month"].min()
+    df["time_index"] = (df["year_month"] - min_period).apply(lambda x: x.n)
+
+    df = df.drop(columns=["month_num"])
+    # df = df.drop(columns=["year_month"])
+    return df
+
+
 def main():
     panel, grids = preprocess_crime_data()
     light = preprocess_street_light_data()
@@ -100,25 +132,20 @@ def main():
         how="left",
     )
     data_panel = gpd.GeoDataFrame(data_panel, geometry="geometry", crs=grids.crs)
+    data_panel = encode_year_month(data_panel)
+
     print(data_panel)
     non_zero = data_panel["crime_count"] != 0
     zero = data_panel["crime_count"] == 0
     print(f"Final number of records: {len(data_panel):,}")
     print(f"Non-Zero records: {len(data_panel[non_zero]):,}")
     print(f"Zero records: {len(data_panel[zero]):,}")
+
     validate_panel(data_panel)
     summary = (
         data_panel.groupby(["cell_id", "year_month"])["crime_count"].sum().reset_index()
     )
     print(summary[summary["crime_count"] > 0].head(20))
-
-    # Or plot directly with matplotlib for a specific cell
-    import matplotlib.pyplot as plt
-
-    cell = data_panel[data_panel["cell_id"] == 800]  # pick an active cell
-    cell = cell.groupby("year_month")["crime_count"].sum()
-    cell.plot(title="Crime count over time — cell 800")
-    plt.show()
 
     # Save
     # print("Saving data_panel.parquet ...")
@@ -126,20 +153,6 @@ def main():
     print("Saving data_panel.csv ...")
     data_panel.to_csv("data/data_panel.csv", index=False)
     # data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
-
-
-def validate_panel(panel: pd.DataFrame):
-    assert panel[["cell_id", "year_month", "crime_group"]].isna().sum().sum() == 0
-    assert panel.duplicated(["cell_id", "year_month", "crime_group"]).sum() == 0
-    assert (panel["crime_count"] >= 0).all()
-    assert (panel["prev_crime_count"] >= 0).all()
-    assert (panel["avg_crime_count"] >= 0).all()
-    assert (panel["cumulative_crime_count"] >= 0).all()
-
-    assert set(panel["crime_group"].unique()) == {"night", "non_night"}
-    assert panel["crime_count"].dtype == int
-    assert (panel["cumulative_crime_count"] >= panel["prev_crime_count"]).all()
-    print("  Validation passed ✓")
 
 
 if __name__ == "__main__":
