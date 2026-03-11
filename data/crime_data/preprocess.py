@@ -125,43 +125,36 @@ def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
         freq="M",
     )
     crime_groups = ["night", "non_night"]
-    neighbourhood = crime_gdf["Neighbourhood Name"].unique()
 
-    # Full skeleton
     full_index = pd.MultiIndex.from_product(
-        [cells, months, crime_groups, neighbourhood],
-        names=["cell_id", "year_month", "crime_group", "neighbourhood"],
+        [cells, months, crime_groups],
+        names=["cell_id", "year_month", "crime_group"],
     )
+
     panel = pd.DataFrame(index=full_index).reset_index()
     panel = panel.merge(
-        aggregated,
-        on=["cell_id", "year_month", "crime_group"],
-        how="left",
+        aggregated, on=["cell_id", "year_month", "crime_group"], how="left"
     )
     panel["crime_count"] = panel["crime_count"].fillna(0).astype(int)
-    panel = panel.sort_values(["cell_id", "crime_group", "year_month"])
+
+    # panel = panel.merge(grids[["cell_id"]], on="cell_id", how="left")
 
     return panel
 
 
 def add_crime_features(df: pd.DataFrame):
-    # Accumulated crime count
-    df["total_crime_count"] = (
-        df.groupby("cell_id")["crime_count"].cumsum().shift(1).fillna(0)
-    )
+    df = df.sort_values(["cell_id", "crime_group", "year_month"]).copy()
+    g = df.groupby(["cell_id", "crime_group"])["crime_count"]
 
-    # Average crime count
+    shifted = g.shift(1).fillna(0)
+    df["cumulative_crime_count"] = shifted.groupby(
+        [df["cell_id"], df["crime_group"]]
+    ).cumsum()
+
     df["avg_crime_count"] = (
-        df.groupby("cell_id")["crime_count"]
-        .expanding()
-        .mean()
-        .shift(1)
-        .reset_index(level=0, drop=True)
-        .fillna(0)
+        g.expanding().mean().shift(1).reset_index(level=[0, 1], drop=True).fillna(0)
     )
-
-    # Previous crime count
-    df["prev_crime_count"] = df.groupby("cell_id")["crime_count"].shift(1).fillna(0)
+    df["prev_crime_count"] = g.shift(1).fillna(0)
     return df
 
 
