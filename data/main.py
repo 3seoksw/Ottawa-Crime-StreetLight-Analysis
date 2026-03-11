@@ -1,3 +1,4 @@
+import pandas as pd
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import box
@@ -29,11 +30,16 @@ def build_grid_cells(gdf: gpd.GeoDataFrame, cell_size: int = 50):
             x, y = float(x), float(y)
             grid = box(x, y, x + cell_size, y + cell_size)
             cells.append(grid)
-            cell_ids.append(i * (len(y_range) - 1) + j)
+            cell_ids.append(i * len(y_range) + j)
 
     grids = gpd.GeoDataFrame({"cell_id": cell_ids, "geometry": cells}, crs=gdf.crs)
     grids["centroid_x"] = grids.geometry.centroid.x
     grids["centroid_y"] = grids.geometry.centroid.y
+    assert (
+        (grids.groupby("cell_id")[["centroid_x", "centroid_y"]].nunique() == 1)
+        .all()
+        .all()
+    )
     print(f"Grid cells created: {len(grids):,}, {grids.crs}")
     return grids
 
@@ -94,10 +100,46 @@ def main():
         how="left",
     )
     data_panel = gpd.GeoDataFrame(data_panel, geometry="geometry", crs=grids.crs)
+    print(data_panel)
+    non_zero = data_panel["crime_count"] != 0
+    zero = data_panel["crime_count"] == 0
+    print(f"Final number of records: {len(data_panel):,}")
+    print(f"Non-Zero records: {len(data_panel[non_zero]):,}")
+    print(f"Zero records: {len(data_panel[zero]):,}")
+    validate_panel(data_panel)
+    summary = (
+        data_panel.groupby(["cell_id", "year_month"])["crime_count"].sum().reset_index()
+    )
+    print(summary[summary["crime_count"] > 0].head(20))
+
+    # Or plot directly with matplotlib for a specific cell
+    import matplotlib.pyplot as plt
+
+    cell = data_panel[data_panel["cell_id"] == 800]  # pick an active cell
+    cell = cell.groupby("year_month")["crime_count"].sum()
+    cell.plot(title="Crime count over time — cell 800")
+    plt.show()
 
     # Save
-    data_panel.to_parquet("data/data_panel.parquet", index=False)
-    data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
+    # print("Saving data_panel.parquet ...")
+    # data_panel.to_parquet("data/data_panel.parquet", index=False)
+    print("Saving data_panel.csv ...")
+    data_panel.to_csv("data/data_panel.csv", index=False)
+    # data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
+
+
+def validate_panel(panel: pd.DataFrame):
+    assert panel[["cell_id", "year_month", "crime_group"]].isna().sum().sum() == 0
+    assert panel.duplicated(["cell_id", "year_month", "crime_group"]).sum() == 0
+    assert (panel["crime_count"] >= 0).all()
+    assert (panel["prev_crime_count"] >= 0).all()
+    assert (panel["avg_crime_count"] >= 0).all()
+    assert (panel["cumulative_crime_count"] >= 0).all()
+
+    assert set(panel["crime_group"].unique()) == {"night", "non_night"}
+    assert panel["crime_count"].dtype == int
+    assert (panel["cumulative_crime_count"] >= panel["prev_crime_count"]).all()
+    print("  Validation passed ✓")
 
 
 if __name__ == "__main__":
