@@ -93,6 +93,7 @@ def validate_panel(panel: pd.DataFrame):
     assert set(panel["crime_group"].unique()) == {0, 1}
     assert panel["crime_count"].dtype == int
     assert (panel["cumulative_crime_count"] >= panel["prev_crime_count"]).all()
+    print(panel.columns)
     print("Validation passed")
 
 
@@ -151,8 +152,8 @@ def main():
     validate_panel(data_panel)
 
     # Save
-    # print("Saving data_panel.parquet ...")
-    # data_panel.to_parquet("data/data_panel.parquet", index=False)
+    print("Saving data_panel.parquet ...")
+    data_panel.to_parquet("data/data_panel.parquet", index=False)
     print("Saving data_panel.csv ...")
     data_panel.to_csv("data/data_panel.csv", index=False)
     # data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
