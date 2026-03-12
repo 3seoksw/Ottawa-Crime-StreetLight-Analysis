@@ -5,7 +5,6 @@ import torch.nn as nn
 class FeatureAttention(nn.Module):
     def __init__(
         self,
-        n_features: int = 14,
         d_model: int = 128,
         n_heads: int = 4,
     ):
