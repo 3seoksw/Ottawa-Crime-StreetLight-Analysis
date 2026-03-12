@@ -8,3 +8,4 @@ linearmodels
 scipy
 pyarrow
 parquet
+tensorboard
