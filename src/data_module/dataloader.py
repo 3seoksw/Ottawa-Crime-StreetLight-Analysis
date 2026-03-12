@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from data_module.dataset import AggDataset
 from torch.utils.data import WeightedRandomSampler
@@ -16,7 +17,6 @@ class AggDataLoader:
         self.train_loader = DataLoader(
             train_set,
             batch_size=batch_size,
-            shuffle=True,
             sampler=weight_sampler,
         )
         val_set = Subset(dataset, val_indices.tolist())
@@ -44,6 +44,11 @@ class AggDataLoader:
         df = dataset.data.iloc[self.train_indices].reset_index(drop=True)
         labels = (df["crime_count"] > 0).astype(int).to_numpy()
 
+        n_positive = (labels == 1).sum()
+        n_negative = (labels == 0).sum()
+        pos_weight = torch.tensor(n_negative / n_positive, dtype=torch.float32)
+        self.pos_weight = pos_weight
+
         # Numbers of zero records and nonzero records
         class_counts = np.bincount(labels, minlength=2)
         class_weights = 1 / class_counts
@@ -59,4 +64,6 @@ class AggDataLoader:
 
 if __name__ == "__main__":
     dataset = AggDataset()
-    AggDataLoader(dataset)
+    loader = AggDataLoader(dataset)
+    x, mask, y = next(iter(loader.train_loader))
+    print(x.shape, mask.shape, y.shape)
