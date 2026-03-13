@@ -4,6 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import contextily as ctx
 
+period_config = {
+    "monthly": "M",
+    "quarterly": "Q",
+}
+
 
 def load_crime_data(
     filename: str = "data/crime_data/Criminal_Offences_Open_Data_-621494644292511792.csv",
@@ -75,6 +80,16 @@ def parse_crime_dates(gdf: gpd.GeoDataFrame):
     return gdf
 
 
+def get_period_freq(record_frequency: str) -> str:
+    try:
+        return period_config[record_frequency]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported record frequency: {record_frequency}. "
+            f"Expected one of {sorted(period_config)}."
+        ) from exc
+
+
 def add_crime_group(gdf: gpd.GeoDataFrame):
     gdf["crime_group"] = np.where(
         gdf["is_nighttime"] == 1,
@@ -102,7 +117,12 @@ def filter_areas(gdf: gpd.GeoDataFrame):
     return gpd.GeoDataFrame(gdf[mask].copy())
 
 
-def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
+def assign_crimes_to_grid(
+    crime_gdf: gpd.GeoDataFrame,
+    grids: gpd.GeoDataFrame,
+    record_frequency: str = "monthly",
+):
+    period_freq = get_period_freq(record_frequency)
     grid_gdf = gpd.GeoDataFrame(
         grids[["cell_id", "geometry"]], geometry="geometry", crs=grids.crs
     )
@@ -112,29 +132,30 @@ def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
         predicate="within",
         how="inner",
     )
+    joined["time_period"] = joined["Occurred Date"].dt.to_period(period_freq)
 
     aggregated = joined.groupby(
-        ["cell_id", "year_month", "crime_group"], observed=True
+        ["cell_id", "time_period", "crime_group"], observed=True
     ).size()
     aggregated = aggregated.to_frame("crime_count").reset_index()
     aggregated["crime_group"] = aggregated["crime_group"].astype(int)
     crime_groups = [0, 1]
 
     cells = grids["cell_id"].unique()
-    months = pd.period_range(
-        crime_gdf["year_month"].min(),
-        crime_gdf["year_month"].max(),
-        freq="M",
+    periods = pd.period_range(
+        crime_gdf["Occurred Date"].min().to_period(period_freq),
+        crime_gdf["Occurred Date"].max().to_period(period_freq),
+        freq=period_freq,
     )
 
     full_index = pd.MultiIndex.from_product(
-        [cells, months, crime_groups],
-        names=["cell_id", "year_month", "crime_group"],
+        [cells, periods, crime_groups],
+        names=["cell_id", "time_period", "crime_group"],
     )
 
     panel = pd.DataFrame(index=full_index).reset_index()
     panel = panel.merge(
-        aggregated, on=["cell_id", "year_month", "crime_group"], how="left"
+        aggregated, on=["cell_id", "time_period", "crime_group"], how="left"
     )
     panel["crime_count"] = panel["crime_count"].fillna(0).astype(int)
 
@@ -144,7 +165,7 @@ def assign_crimes_to_grid(crime_gdf: gpd.GeoDataFrame, grids: gpd.GeoDataFrame):
 
 
 def add_crime_features(df: pd.DataFrame):
-    df = df.sort_values(["cell_id", "crime_group", "year_month"]).copy()
+    df = df.sort_values(["cell_id", "crime_group", "time_period"]).copy()
     g = df.groupby(["cell_id", "crime_group"])["crime_count"]
 
     shifted = g.shift(1).fillna(0)
