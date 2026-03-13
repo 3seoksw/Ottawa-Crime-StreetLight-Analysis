@@ -65,5 +65,5 @@ class AggDataLoader:
 if __name__ == "__main__":
     dataset = AggDataset()
     loader = AggDataLoader(dataset)
-    x, mask, y = next(iter(loader.train_loader))
-    print(x.shape, mask.shape, y.shape)
+    x, y = next(iter(loader.train_loader))
+    print(x.shape, y.shape)

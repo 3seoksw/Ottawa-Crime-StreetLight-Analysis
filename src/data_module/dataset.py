@@ -73,7 +73,7 @@ class AggDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int):
-        X = torch.tensor(self.X[idx].reshape(1, -1))
+        X = torch.tensor(self.X[idx])
         y = torch.tensor(self.y[idx])
         return X, y
 
