@@ -13,19 +13,22 @@ class Trainer:
         lr: float = 1e-3,
         eval_every: int = 20,
         log_dir: str = "runs/",
+        device: str = "cpu",
     ):
         self.dataloader = dataloader
         self.train_loader = dataloader.train_loader
         self.val_loader = dataloader.val_loader
         self.test_loader = dataloader.test_loader
+        self.device = device
         self.model = model
+        self.model.to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.pos_weight = self.dataloader.pos_weight
         self.eval_every = eval_every
         self.writer = SummaryWriter(log_dir=log_dir)
         self.global_step = 0
 
-    def loss_fn(self, y: torch.Tensor, is_nonzero, y_pred):
+    def loss_fn(self, y: torch.Tensor, is_nonzero: torch.Tensor, y_pred: torch.Tensor):
         # Binary Cross Entropy Loss (nonzero or zero crime count)
         y_cls = (y > 0).float()
         pos_weight = self.pos_weight.to(is_nonzero.device)
@@ -40,10 +43,10 @@ class Trainer:
             loss_mse = torch.zeros((), device=y.device, dtype=torch.float32)
         return loss_cls, loss_mse
 
-    def train(self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
+    def train_batch(self, batch: tuple[torch.Tensor, torch.Tensor]):
         self.optimizer.zero_grad()
-        X, mask, y = batch
-        is_nonzero, pred_y = self.model(X, mask)
+        X, y = self._device_to(batch)
+        is_nonzero, pred_y, _ = self.model(X)
         loss_cls, loss_mse = self.loss_fn(y, is_nonzero, pred_y)
         loss = loss_cls + loss_mse
         loss.backward()
@@ -54,7 +57,7 @@ class Trainer:
         for e in range(max_epochs):
             for i, batch in enumerate(self.train_loader):
                 self.model.train()
-                loss_cls, loss_mse = self.train(batch)
+                loss_cls, loss_mse = self.train_batch(batch)
                 if i % 20 == 0:
                     self.writer.add_scalar(
                         "loss/loss_cls", loss_cls.item(), self.global_step
@@ -82,8 +85,8 @@ class Trainer:
 
         with torch.no_grad():
             for batch in self.val_loader:
-                X, mask, y = batch
-                is_nonzero, count = self.model.predict(X, mask)
+                X, y = self._device_to(batch)
+                is_nonzero, count, _ = self.model.predict(X)
                 loss_cls, loss_mse = self.loss_fn(y, is_nonzero, count)
                 total_loss_cls += loss_cls.detach().cpu()
                 total_loss_mse += loss_mse.detach().cpu()
@@ -93,5 +96,9 @@ class Trainer:
         self.writer.add_scalar("val/loss_cls", avg_loss_cls.item(), self.global_step)
         self.writer.add_scalar("val/loss_mse", avg_loss_mse.item(), self.global_step)
         return avg_loss_cls.item(), avg_loss_mse.item()
+
+    def _device_to(self, batch: tuple[torch.Tensor, torch.Tensor]):
+        X, y = batch
+        return X.to(self.device), y.to(self.device)
 
     # TODO: TESTING
