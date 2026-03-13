@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -9,6 +10,7 @@ from crime_data.preprocess import (
     filter_areas,
     assign_crimes_to_grid,
     add_crime_features,
+    get_period_freq,
     print_crime_ratios,
     plot_crime_hexbin,
 )
@@ -44,7 +46,7 @@ def build_grid_cells(gdf: gpd.GeoDataFrame, cell_size: int = 50):
     return grids
 
 
-def preprocess_crime_data():
+def preprocess_crime_data(record_frequency: str = "monthly"):
     print("============ CRIME DATA ============ ")
     par_dir = "data"
     crime_data_name = "crime_data/Criminal_Offences_Open_Data_-621494644292511792.csv"
@@ -64,7 +66,7 @@ def preprocess_crime_data():
         crime_gdf = crime_gdf.to_crs(epsg=2951)
     grids = build_grid_cells(crime_gdf, 400)
 
-    panel = assign_crimes_to_grid(crime_gdf, grids)
+    panel = assign_crimes_to_grid(crime_gdf, grids, record_frequency=record_frequency)
     panel = add_crime_features(panel)
     print_crime_ratios(panel)
     return panel, grids
@@ -83,8 +85,8 @@ def preprocess_street_light_data():
 
 
 def validate_panel(panel: pd.DataFrame):
-    assert panel[["cell_id", "year_month", "crime_group"]].isna().sum().sum() == 0
-    assert panel.duplicated(["cell_id", "year_month", "crime_group"]).sum() == 0
+    assert panel[["cell_id", "time_period", "crime_group"]].isna().sum().sum() == 0
+    assert panel.duplicated(["cell_id", "time_period", "crime_group"]).sum() == 0
     assert (panel["crime_count"] >= 0).all()
     assert (panel["prev_crime_count"] >= 0).all()
     assert (panel["avg_crime_count"] >= 0).all()
@@ -97,28 +99,50 @@ def validate_panel(panel: pd.DataFrame):
     print("Validation passed")
 
 
-def encode_year_month(df: pd.DataFrame) -> pd.DataFrame:
+def encode_time_period(
+    df: pd.DataFrame,
+    record_frequency: str = "monthly",
+) -> pd.DataFrame:
     df = df.copy()
-    dt = df["year_month"].dt.to_timestamp()
+    period_freq = get_period_freq(record_frequency)
+    dt = df["time_period"].dt.to_timestamp()
 
     df["year"] = dt.dt.year
-    df["month_num"] = dt.dt.month
 
-    df["month_sin"] = np.sin(2 * np.pi * dt.dt.month / 12)
-    df["month_cos"] = np.cos(2 * np.pi * dt.dt.month / 12)
+    if period_freq == "M":
+        cycle_position = dt.dt.month
+        cycle_length = 12
+    else:
+        cycle_position = dt.dt.quarter
+        cycle_length = 4
 
-    min_period = df["year_month"].min()
-    df["time_index"] = (df["year_month"] - min_period).apply(lambda x: x.n)
+    df["month_sin"] = np.sin(2 * np.pi * cycle_position / cycle_length)
+    df["month_cos"] = np.cos(2 * np.pi * cycle_position / cycle_length)
 
-    df = df.drop(columns=["month_num"])
-    # df = df.drop(columns=["year_month"])
+    min_period = df["time_period"].min()
+    df["time_index"] = (df["time_period"] - min_period).apply(lambda x: x.n)
     return df
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Build the Ottawa crime-light panel dataset."
+    )
+    parser.add_argument(
+        "--record-frequency",
+        choices=["monthly", "quarterly"],
+        default="monthly",
+        help="Temporal aggregation level for crime records.",
+    )
+    return parser.parse_args()
+
+
 def main():
-    panel, grids = preprocess_crime_data()
+    args = parse_args()
+
+    panel, grids = preprocess_crime_data(record_frequency=args.record_frequency)
     light = preprocess_street_light_data()
-    print("============ AGGREGATION ============ ")
+    print(f"============ AGGREGATION ({args.record_frequency}) ============ ")
     lights_cell = assign_street_lights_to_grid(light, grids)
 
     data_panel = panel.merge(lights_cell, on="cell_id", how="left")
@@ -140,7 +164,10 @@ def main():
         how="left",
     )
     data_panel = gpd.GeoDataFrame(data_panel, geometry="geometry", crs=grids.crs)
-    data_panel = encode_year_month(data_panel)
+    data_panel = encode_time_period(
+        data_panel,
+        record_frequency=args.record_frequency,
+    )
 
     print(data_panel)
     non_zero = data_panel["crime_count"] != 0
@@ -152,8 +179,8 @@ def main():
     validate_panel(data_panel)
 
     # Save
-    print("Saving data_panel.parquet ...")
-    data_panel.to_parquet("data/data_panel.parquet", index=False)
+    # print("Saving data_panel.parquet ...")
+    # data_panel.to_parquet("data/data_panel.parquet", index=False)
     print("Saving data_panel.csv ...")
     data_panel.to_csv("data/data_panel.csv", index=False)
     # data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
