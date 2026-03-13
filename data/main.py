@@ -116,8 +116,8 @@ def encode_time_period(
         cycle_position = dt.dt.quarter
         cycle_length = 4
 
-    df["month_sin"] = np.sin(2 * np.pi * cycle_position / cycle_length)
-    df["month_cos"] = np.cos(2 * np.pi * cycle_position / cycle_length)
+    df["time_sin"] = np.sin(2 * np.pi * cycle_position / cycle_length)
+    df["time_cos"] = np.cos(2 * np.pi * cycle_position / cycle_length)
 
     min_period = df["time_period"].min()
     df["time_index"] = (df["time_period"] - min_period).apply(lambda x: x.n)
@@ -131,7 +131,7 @@ def parse_args():
     parser.add_argument(
         "--record-frequency",
         choices=["monthly", "quarterly"],
-        default="monthly",
+        default="quarterly",
         help="Temporal aggregation level for crime records.",
     )
     return parser.parse_args()
