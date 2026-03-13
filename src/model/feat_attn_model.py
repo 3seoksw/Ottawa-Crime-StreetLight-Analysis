@@ -17,8 +17,8 @@ class FeatureAttention(nn.Module):
         self.norm = nn.LayerNorm(d_model)
 
     def forward(self, x: torch.Tensor):
-        x = x.unsqueeze(-1)
-        h = self.linear(x)
+        x = x.unsqueeze(-1)  # B, 14, 128
+        h = self.linear(x)  # B, 14, 128
         out, weights = self.mha(
             query=h,
             key=h,
@@ -27,7 +27,7 @@ class FeatureAttention(nn.Module):
             average_attn_weights=False,
         )
         self.attn_weights = weights
-        return self.norm(out)
+        return self.norm(out), weights
 
 
 if __name__ == "__main__":
