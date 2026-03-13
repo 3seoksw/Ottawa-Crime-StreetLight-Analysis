@@ -12,6 +12,8 @@ period_config = {
 
 def load_crime_data(
     filename: str = "data/crime_data/Criminal_Offences_Open_Data_-621494644292511792.csv",
+    start_year: int = 2018,
+    end_year: int | None = None,
 ) -> gpd.GeoDataFrame:
     df = pd.read_csv(filename)
     prev_len = len(df)
@@ -21,10 +23,12 @@ def load_crime_data(
     df["y"] = pd.to_numeric(df["y"], errors="coerce")
     df = df.dropna(subset=["x", "y"])
 
-    # Drop old records, maintain records from 2018 to 2024
+    # Keep records within the supported analysis window.
     df["Occurred Date"] = pd.to_datetime(df["Occurred Date"], errors="coerce")
     df["year"] = df["Occurred Date"].dt.year
-    df = pd.DataFrame(df[df["year"].between(2018, 2024)])
+    if end_year is None:
+        end_year = pd.Timestamp.today().year
+    df = pd.DataFrame(df[df["year"].between(start_year, end_year)])
 
     # Source coordinates are projected Ottawa-area meters (EPSG:2951).
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.x, df.y), crs="EPSG:2951")
@@ -173,10 +177,11 @@ def add_crime_features(df: pd.DataFrame):
         [df["cell_id"], df["crime_group"]]
     ).cumsum()
 
+    avg_crime_count = g.expanding().mean()
     df["avg_crime_count"] = (
-        g.expanding().mean().shift(1).reset_index(level=[0, 1], drop=True).fillna(0)
+        avg_crime_count.groupby(level=[0, 1]).shift(1).reset_index(level=[0, 1], drop=True).fillna(0)
     )
-    df["prev_crime_count"] = g.shift(1).fillna(0)
+    df["prev_crime_count"] = shifted
     return df
 
 

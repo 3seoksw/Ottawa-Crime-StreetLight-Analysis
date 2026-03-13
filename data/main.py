@@ -110,10 +110,10 @@ def encode_time_period(
     df["year"] = dt.dt.year
 
     if period_freq == "M":
-        cycle_position = dt.dt.month
+        cycle_position = dt.dt.month - 1
         cycle_length = 12
     else:
-        cycle_position = dt.dt.quarter
+        cycle_position = dt.dt.quarter - 1
         cycle_length = 4
 
     df["time_sin"] = np.sin(2 * np.pi * cycle_position / cycle_length)
