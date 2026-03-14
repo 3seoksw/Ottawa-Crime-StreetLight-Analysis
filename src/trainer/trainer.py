@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from data_module.dataloader import AggDataLoader
 from model.attn_model import AttentionModel
 from torch.utils.tensorboard import SummaryWriter
@@ -78,16 +79,18 @@ class Trainer:
                 self.model.train()
                 loss_cls, loss_count = self.train_batch(batch)
                 if i % 20 == 0:
+                    loss_cls = loss_cls.item()
+                    loss_count = loss_count.item()
+                    loss_sum = loss_cls + loss_count
+                    self.writer.add_scalar("loss/loss_cls", loss_cls, self.global_step)
                     self.writer.add_scalar(
-                        "loss/loss_cls", loss_cls.item(), self.global_step
+                        "loss/loss_count", loss_count, self.global_step
                     )
-                    self.writer.add_scalar(
-                        "loss/loss_count", loss_count.item(), self.global_step
-                    )
+                    self.writer.add_scalar("loss/loss_sum", loss_sum, self.global_step)
                     if verbose:
                         print(f" [Epoch {e} - {i}] {self.global_step}")
-                        print(f"  loss_cls: {loss_cls.item():.3f}")
-                        print(f"  loss_count: {loss_count.item():.3f}")
+                        print(f"  loss_cls: {loss_cls:.3f}")
+                        print(f"  loss_count: {loss_count:.3f}")
 
                 if i % self.eval_every == 0:
                     avg_loss_cls, avg_loss_count = self.validate()
@@ -99,24 +102,21 @@ class Trainer:
 
     def validate(self):
         self.model.eval()
-        total_loss_cls = torch.zeros((), dtype=torch.float32)
-        total_loss_count = torch.zeros((), dtype=torch.float32)
-
+        losses_cls = []
+        losses_count = []
         with torch.no_grad():
             for batch in self.val_loader:
                 X, y = self._device_to(batch)
                 is_nonzero, count, _ = self.model.predict(X)
                 loss_cls, loss_count = self.loss_fn(y, is_nonzero, count)
-                total_loss_cls += loss_cls.detach().cpu()
-                total_loss_count += loss_count.detach().cpu()
+                losses_cls.append(loss_cls.item())
+                losses_count.append(loss_count.item())
 
-        avg_loss_cls = total_loss_cls / len(self.val_loader)
-        avg_loss_count = total_loss_count / len(self.val_loader)
-        self.writer.add_scalar("val/loss_cls", avg_loss_cls.item(), self.global_step)
-        self.writer.add_scalar(
-            "val/loss_count", avg_loss_count.item(), self.global_step
-        )
-        return avg_loss_cls.item(), avg_loss_count.item()
+        avg_loss_cls = np.mean(losses_cls)
+        avg_loss_count = np.mean(losses_count)
+        self.writer.add_scalar("val/loss_cls", avg_loss_cls, self.global_step)
+        self.writer.add_scalar("val/loss_count", avg_loss_count, self.global_step)
+        return avg_loss_cls, avg_loss_count
 
     def _device_to(self, batch: tuple[torch.Tensor, torch.Tensor]):
         X, y = batch
