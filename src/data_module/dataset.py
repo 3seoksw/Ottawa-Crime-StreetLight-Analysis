@@ -38,6 +38,10 @@ class AggDataset(Dataset):
             "total_intensity",
             "avg_wattage",
         ]
+        self.scale_cols = [
+            "centroid_x",
+            "centroid_y",
+        ]
         dirs = data_dir.split(".")
         if dirs[-1] == "gpkg":
             self.features.append("geometry")
@@ -58,6 +62,7 @@ class AggDataset(Dataset):
         self.y = self.data[self.target_feature].values.astype(np.float32)
 
     def _validate_required_columns(self):
+        self.data[self.scale_cols] /= 1e4
         required_columns = {
             "cell_id",
             "crime_group",
@@ -84,3 +89,4 @@ if __name__ == "__main__":
     x, y = record
     print(x.shape, y.shape)
     print(len(dataset))
+    print(x, y)
