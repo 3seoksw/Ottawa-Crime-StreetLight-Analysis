@@ -1,3 +1,4 @@
+import os
 import argparse
 import pandas as pd
 import geopandas as gpd
@@ -19,6 +20,7 @@ from street_light_data.preprocess import (
     plot_street_lights,
     assign_street_lights_to_grid,
 )
+from pathlib import Path
 
 
 def build_grid_cells(gdf: gpd.GeoDataFrame, cell_size: int = 50):
@@ -46,7 +48,7 @@ def build_grid_cells(gdf: gpd.GeoDataFrame, cell_size: int = 50):
     return grids
 
 
-def preprocess_crime_data(record_frequency: str = "monthly"):
+def preprocess_crime_data(record_frequency: str = "monthly", cell_size: int = 400):
     print("============ CRIME DATA ============ ")
     par_dir = "data"
     crime_data_name = "crime_data/Criminal_Offences_Open_Data_-621494644292511792.csv"
@@ -64,7 +66,7 @@ def preprocess_crime_data(record_frequency: str = "monthly"):
 
     if crime_gdf.crs is None or crime_gdf.crs.to_epsg() != 2951:
         crime_gdf = crime_gdf.to_crs(epsg=2951)
-    grids = build_grid_cells(crime_gdf, 400)
+    grids = build_grid_cells(crime_gdf, cell_size)
 
     panel = assign_crimes_to_grid(crime_gdf, grids, record_frequency=record_frequency)
     panel = add_crime_features(panel)
@@ -134,13 +136,16 @@ def parse_args():
         default="quarterly",
         help="Temporal aggregation level for crime records.",
     )
+    parser.add_argument("--cell_size", type=int, default=400)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
 
-    panel, grids = preprocess_crime_data(record_frequency=args.record_frequency)
+    panel, grids = preprocess_crime_data(
+        record_frequency=args.record_frequency, cell_size=args.cell_size
+    )
     light = preprocess_street_light_data()
     print(f"============ AGGREGATION ({args.record_frequency}) ============ ")
     lights_cell = assign_street_lights_to_grid(light, grids)
@@ -179,11 +184,11 @@ def main():
     validate_panel(data_panel)
 
     # Save
-    # print("Saving data_panel.parquet ...")
-    # data_panel.to_parquet("data/data_panel.parquet", index=False)
-    print("Saving data_panel.csv ...")
-    data_panel.to_csv("data/data_panel.csv", index=False)
-    # data_panel.to_file("data/data_panel.gpkg", layer="data_panel", driver="GPKG")
+    print(f"Saving data_panel_{args.cell_size}.csv ...")
+    if not Path("data/preprocessed").exists():
+        os.mkdir("data/preprocessed")
+
+    data_panel.to_csv(f"data/preprocessed/data_panel_{args.cell_size}.csv", index=False)
 
 
 if __name__ == "__main__":
