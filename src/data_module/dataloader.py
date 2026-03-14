@@ -7,6 +7,7 @@ from torch.utils.data import Subset, DataLoader
 
 class AggDataLoader:
     def __init__(self, dataset: AggDataset, batch_size: int = 64):
+        self.features = dataset.features
         train_indices, val_indices, test_indices = self._split_data_by_idx(dataset)
         self.train_indices = train_indices
         self.val_indices = val_indices
