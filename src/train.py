@@ -10,9 +10,9 @@ from trainer.trainer import Trainer
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Crime prediction model")
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=5)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=5e-5)
     return parser.parse_args()
 
 
@@ -41,6 +41,7 @@ def main():
     )
 
     trainer.fit(max_epochs=args.epochs, verbose=True)
+    trainer.test()
 
 
 if __name__ == "__main__":
