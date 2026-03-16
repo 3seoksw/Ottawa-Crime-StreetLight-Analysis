@@ -155,6 +155,8 @@ class Trainer:
         preds_list = []
         attn_weights_list = []
         accuracies = []
+        losses_cls = []
+        losses_count = []
         with torch.no_grad():
             for i, batch in enumerate(self.test_loader):
                 X, y = self._device_to(batch)
@@ -168,12 +170,9 @@ class Trainer:
                 loss_cls, loss_count = self.loss_fn(y, is_nonzero, count)
                 loss_cls = loss_cls.item()
                 loss_count = loss_count.item()
-                loss_sum = loss_cls + loss_count
-                if i % 10 == 0:
-                    self.writer.add_scalar("test/loss_cls", loss_cls, i)
-                    self.writer.add_scalar("test/loss_count", loss_count, i)
-                    self.writer.add_scalar("test/loss_sum", loss_sum, i)
-                    self.writer.add_scalar("test/acc", acc, i)
+
+                losses_cls.append(loss_cls)
+                losses_count.append(loss_count)
 
                 # Confusion Matrix
                 probs = torch.sigmoid(is_nonzero)
@@ -183,10 +182,20 @@ class Trainer:
                 true = (y > 0).int()
                 trues_list.append(true)
 
-            # Attention Map
-            attn_weights = torch.cat(attn_weights_list, dim=0)
-            attn_weights_per_head = attn_weights.mean(dim=0)
-            attn_weights_per_head = attn_weights_per_head.cpu().numpy()
+        # Attention Map
+        attn_weights = torch.cat(attn_weights_list, dim=0)
+        attn_weights_per_head = attn_weights.mean(dim=0)
+        attn_weights_per_head = attn_weights_per_head.cpu().numpy()
+
+        # Loss
+        loss_cls = np.mean(losses_cls)
+        loss_count = np.mean(losses_count)
+        self.writer.add_scalar("test/loss_cls", loss_cls, self.global_step)
+        self.writer.add_scalar("test/loss_count", loss_count, self.global_step)
+
+        # Accuracy
+        accuracy = np.mean(accuracies)
+        self.writer.add_scalar("test/acc", accuracy, self.global_step)
 
         trues = torch.cat(trues_list).cpu().numpy()
         preds = torch.cat(preds_list).cpu().numpy()
