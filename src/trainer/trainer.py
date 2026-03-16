@@ -3,7 +3,12 @@ import torch.nn as nn
 import numpy as np
 from data_module.dataloader import AggDataLoader
 from model.attn_model import AttentionModel
-from trainer.utils import plot_confusion_matrix, plot_attention_heatmap
+from trainer.utils import (
+    plot_confusion_matrix,
+    plot_attention_heatmap,
+    plot_training_results,
+    plot_performance,
+)
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import confusion_matrix
 
@@ -158,13 +163,14 @@ class Trainer:
         losses_cls = []
         losses_count = []
         with torch.no_grad():
-            for i, batch in enumerate(self.test_loader):
+            for _, batch in enumerate(self.test_loader):
                 X, y = self._device_to(batch)
                 is_nonzero, count, attn_weights = self.model.predict(X)
+
                 acc = self.compute_accuracy(y, is_nonzero, count)
+                accuracies.append(acc)
 
                 attn_weights_list.append(attn_weights)
-                accuracies.append(acc)
 
                 # Loss
                 loss_cls, loss_count = self.loss_fn(y, is_nonzero, count)
@@ -201,14 +207,23 @@ class Trainer:
         preds = torch.cat(preds_list).cpu().numpy()
         cm = confusion_matrix(trues, preds)
 
+        self._save_weights(attn_weights_per_head)
+        self.writer.close()
+
+        # Plotting
         plot_confusion_matrix(cm, True, self.log_dir)
         plot_confusion_matrix(cm, False, self.log_dir)
         plot_attention_heatmap(
             attn_weights_per_head, self.dataloader.features, self.log_dir
         )
+        plot_training_results(self.log_dir)
+        plot_performance(self.log_dir)
 
-        self.writer.close()
         return cm, attn_weights_per_head
+
+    def _save_weights(self, attn_weights_per_head: np.ndarray):
+        torch.save(self.model.state_dict(), f"{self.log_dir}/model.pth")
+        np.save(f"{self.log_dir}/attn_weights.npy", attn_weights_per_head)
 
     def _device_to(self, batch: tuple[torch.Tensor, torch.Tensor]):
         X, y = batch
