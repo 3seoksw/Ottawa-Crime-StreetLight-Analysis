@@ -8,6 +8,10 @@ absl-py==2.4.0
     # via tensorboard
 affine==2.4.0
     # via rasterio
+antlr4-python3-runtime==4.9.3
+    # via
+    #   hydra-core
+    #   omegaconf
 attrs==25.4.0
     # via rasterio
 certifi==2026.2.25
@@ -50,6 +54,8 @@ geopy==2.4.1
     # via contextily
 grpcio==1.78.0
     # via tensorboard
+hydra-core==1.3.2
+    # via -r requirements.in
 idna==3.11
     # via requests
 interface-meta==1.3.0
@@ -57,7 +63,9 @@ interface-meta==1.3.0
 jinja2==3.1.6
     # via torch
 joblib==1.5.3
-    # via contextily
+    # via
+    #   contextily
+    #   scikit-learn
 kiwisolver==1.4.9
     # via matplotlib
 linearmodels==7.0
@@ -95,13 +103,17 @@ numpy==2.2.6
     #   pyhdfe
     #   pyogrio
     #   rasterio
+    #   scikit-learn
     #   scipy
     #   shapely
     #   statsmodels
     #   tensorboard
+omegaconf==2.3.0
+    # via hydra-core
 packaging==26.0
     # via
     #   geopandas
+    #   hydra-core
     #   matplotlib
     #   pyogrio
     #   statsmodels
@@ -144,16 +156,21 @@ python-dateutil==2.9.0.post0
     #   pandas
 pytz==2025.2
     # via pandas
+pyyaml==6.0.3
+    # via omegaconf
 rasterio==1.4.4
     # via contextily
 requests==2.32.5
     # via contextily
+scikit-learn==1.7.2
+    # via -r requirements.in
 scipy==1.15.3
     # via
     #   -r requirements.in
     #   formulaic
     #   linearmodels
     #   pyhdfe
+    #   scikit-learn
     #   statsmodels
 shapely==2.1.2
     # via geopandas
@@ -169,6 +186,8 @@ tensorboard==2.20.0
     # via -r requirements.in
 tensorboard-data-server==0.7.2
     # via tensorboard
+threadpoolctl==3.6.0
+    # via scikit-learn
 thriftpy2==0.6.0
     # via parquet
 torch==2.10.0

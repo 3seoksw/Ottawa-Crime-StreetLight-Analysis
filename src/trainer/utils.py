@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
+from tensorboard.backend.event_processing.event_accumulator import (
+    EventAccumulator,
+    ScalarEvent,
+)
+from scipy.interpolate import make_interp_spline
 
 
 def plot_confusion_matrix(cm: np.ndarray, normalize: bool, save_dir: str):
@@ -73,5 +78,84 @@ def plot_attention_heatmap(weights: np.ndarray, features: list[str], save_dir: s
     plt.close()
 
 
+def plot_training_results(path: str):
+    ea = EventAccumulator(path)
+    ea.Reload()
+    plt.rcParams.update({"font.size": 14})
+    _plot_loss_results(ea, "cls", path)
+    _plot_loss_results(ea, "count", path)
+
+
+def _plot_loss_results(ea: EventAccumulator, loss_type: str, path: str):
+    sets = ["train", "val"]
+    for dset in sets:
+        loss = ea.Scalars(f"{dset}/loss_{loss_type}")
+        values, steps = _event_to_val_step(loss)
+        steps = np.array(steps)
+
+        interp_spline = make_interp_spline(steps, values)
+        X = np.linspace(steps.min(), steps.max(), 150)
+        Y = interp_spline(X)
+
+        n = 4
+        plt.plot(X[::n], Y[::n], label=f"{dset.title()}")
+    loss = ea.Scalars(f"test/loss_{loss_type}")
+    values, steps = _event_to_val_step(loss)
+    test_loss = values[0]
+    plt.axhline(test_loss, color="red", linestyle="--", label="Test")
+
+    if loss_type == "count":
+        loss_fn_name = "Poisson NLL Loss"
+        loss_fn = r"$\lambda - y \log(\lambda)$"
+    else:
+        loss_fn_name = "Binary Cross-Entropy Loss"
+        loss_fn = r"$-y\log(p) - (1 - y)\log(1 - p)$"
+
+    plt.legend()
+    plt.title(f"{loss_fn_name}", fontsize=18)
+    plt.xlabel("Steps", fontsize=16)
+    plt.ylabel(rf"{loss_fn}")
+    plt.tight_layout()
+    plt.savefig(f"{path}/loss_{loss_type}.png", dpi=300)
+    plt.close()
+
+
+def plot_performance(path: str):
+    plt.figure(figsize=(10, 6))
+
+    ea = EventAccumulator(path)
+    ea.Reload()
+    sets = ["train", "val"]
+    for dset in sets:
+        acc = ea.Scalars(f"{dset}/acc")
+        values, steps = _event_to_val_step(acc)
+
+        plt.plot(steps, values, label=f"{dset.title()}")
+
+    acc = ea.Scalars("test/acc")
+    values, steps = _event_to_val_step(acc)
+    test_acc = values[0]
+    plt.axhline(test_acc, color="red", linestyle="--", label="Test")
+
+    plt.legend()
+    plt.title("Crime Count Accuracy", fontsize=18)
+    plt.xlabel("Steps", fontsize=16)
+    plt.ylabel("Accuracy", fontsize=16)
+    plt.tight_layout()
+    plt.savefig(f"{path}/acc.png", dpi=300)
+    plt.close()
+
+
+def _event_to_val_step(events: list[ScalarEvent]):
+    values = [e.value for e in events]
+    steps = [e.step for e in events]
+    return values, steps
+
+
 def _rename_features(features: list[str]):
     return [f.replace("_", " ").title() for f in features]
+
+
+if __name__ == "__main__":
+    # plot_training_results("runs/20260316_154859")
+    plot_performance("runs/20260316_154859")

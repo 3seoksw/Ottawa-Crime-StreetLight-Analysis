@@ -9,3 +9,5 @@ scipy
 pyarrow
 parquet
 tensorboard
+hydra-core
+scikit-learn
