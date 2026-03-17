@@ -1,5 +1,7 @@
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import shap
 from sklearn.metrics import ConfusionMatrixDisplay
 from tensorboard.backend.event_processing.event_accumulator import (
     EventAccumulator,
@@ -87,6 +89,7 @@ def plot_training_results(path: str):
 
 
 def _plot_loss_results(ea: EventAccumulator, loss_type: str, path: str):
+    plt.figure(figsize=(10, 6))
     sets = ["train", "val"]
     for dset in sets:
         loss = ea.Scalars(f"{dset}/loss_{loss_type}")
@@ -143,6 +146,43 @@ def plot_performance(path: str):
     plt.ylabel("Accuracy", fontsize=16)
     plt.tight_layout()
     plt.savefig(f"{path}/acc.png", dpi=300)
+    plt.close()
+
+
+def plot_shap(
+    test_samples: torch.Tensor,
+    explainer: shap.GradientExplainer,
+    features: list[str],
+    path: str,
+    pred_type: str,
+):
+    fig = plt.figure(figsize=(12, 8))
+
+    indices = torch.randperm(len(test_samples))[:50]
+    samples = test_samples[indices]
+    feature_values = samples.detach().numpy()
+
+    feature_values_scaled = feature_values.copy()
+    for i in range(feature_values.shape[1]):
+        col = feature_values[:, i]
+        p5, p95 = np.percentile(col, [5, 95])
+        col = np.clip(col, p5, p95)
+        col = (col - p5) / (p95 - p5 + 1e-8)
+        feature_values_scaled[:, i] = col
+
+    shap_values = explainer.shap_values(samples)
+    shap_values = shap_values.squeeze()
+    p1, p99 = np.percentile(shap_values, [1, 99])
+    shap_values_clipped = np.clip(shap_values, p1, p99)
+
+    shap.plots.violin(
+        shap_values_clipped,
+        features=feature_values_scaled,
+        feature_names=_rename_features(features),
+        plot_type="violin",
+        sort=False,
+    )
+    fig.savefig(f"{path}/shap_{pred_type}", dpi=300)
     plt.close()
 
 
