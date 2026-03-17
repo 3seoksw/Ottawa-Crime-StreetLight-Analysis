@@ -1,13 +1,16 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import shap
 from data_module.dataloader import AggDataLoader
 from model.attn_model import AttentionModel
+from model.shap_wrapper import ClsWrapper, CountWrapper
 from trainer.utils import (
     plot_confusion_matrix,
     plot_attention_heatmap,
     plot_training_results,
     plot_performance,
+    plot_shap,
 )
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import confusion_matrix
@@ -35,6 +38,9 @@ class Trainer:
         self.model = model
         self.model.to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+
+        self.background = []
+        self.test_samples = []
 
         self.count_loss_type = count_loss_type
         self._assign_loss_functions(count_loss_type)
@@ -83,7 +89,7 @@ class Trainer:
 
         zero_correct = (pred_cls[zero_mask] == 0).sum()
 
-        pred_count = torch.round(y_pred)
+        pred_count = torch.round(torch.exp(y_pred))
         nonzero_correct = (pred_count[nonzero_mask] == y[nonzero_mask]).sum()
 
         correct = zero_correct + nonzero_correct
@@ -93,6 +99,10 @@ class Trainer:
     def train_batch(self, batch: tuple[torch.Tensor, torch.Tensor]):
         self.optimizer.zero_grad()
         X, y = self._device_to(batch)
+
+        if len(self.background) < 100:
+            self.background.append(X.detach().cpu())
+
         is_nonzero, pred_y, _ = self.model(X)
         acc = self.compute_accuracy(y, is_nonzero, pred_y)
         loss_cls, loss_count = self.loss_fn(y, is_nonzero, pred_y)
@@ -165,6 +175,7 @@ class Trainer:
         with torch.no_grad():
             for _, batch in enumerate(self.test_loader):
                 X, y = self._device_to(batch)
+                self.test_samples.append(X.detach().cpu())
                 is_nonzero, count, attn_weights = self.model.predict(X)
 
                 acc = self.compute_accuracy(y, is_nonzero, count)
@@ -218,8 +229,22 @@ class Trainer:
         )
         plot_training_results(self.log_dir)
         plot_performance(self.log_dir)
+        self.summarize_shap()
 
         return cm, attn_weights_per_head
+
+    def summarize_shap(self):
+        background = torch.cat(self.background, dim=0)[:100].cpu()
+        test_samples = torch.cat(self.test_samples, dim=0).cpu()
+        features = self.dataloader.features
+
+        cls_wrap = ClsWrapper(self.model).to("cpu")
+        is_nonzero_explainer = shap.GradientExplainer(cls_wrap, background)
+        plot_shap(test_samples, is_nonzero_explainer, features, self.log_dir, "cls")
+
+        count_wrap = CountWrapper(self.model).to("cpu")
+        count_explainer = shap.GradientExplainer(count_wrap, background)
+        plot_shap(test_samples, count_explainer, features, self.log_dir, "count")
 
     def _save_weights(self, attn_weights_per_head: np.ndarray):
         torch.save(self.model.state_dict(), f"{self.log_dir}/model.pth")
