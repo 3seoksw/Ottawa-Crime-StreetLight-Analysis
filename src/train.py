@@ -1,5 +1,6 @@
 import argparse
 import torch
+import numpy as np
 from datetime import datetime
 
 from data_module.dataset import AggDataset
@@ -12,8 +13,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Crime prediction model")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--lr", type=float, default=1e-5)
     return parser.parse_args()
+
+
+def set_seed(seed: int):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 
 def main():
@@ -25,6 +31,8 @@ def main():
     else:
         device = "cpu"
     print(f" {device} loaded\n")
+
+    set_seed(100)
 
     dataset = AggDataset()
     dataloader = AggDataLoader(dataset, args.batch_size)
